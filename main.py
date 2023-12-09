@@ -3,6 +3,7 @@ import requests
 import re
 import json
 from outils.user_agents import read_user_agents, get_random_user_agent
+from tqdm import tqdm
 
 requested_url = []
 to_request = []
@@ -85,31 +86,39 @@ def request_loop_to_found_url():
 
 
 def search_api_key_in_page(content):
-    # Modifier cette fonction en fonction de la structure du contenu de votre page
-    # Cette fonction doit retourner la clé API si elle est trouvée, sinon None
 
-    # Exemple de motifs pour différentes clés API
     api_key_patterns = [
-        r'[a-zA-Z0-9]{32}',  # Clé API alphanumérique de 32 caractères
-        r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',  # UUID
-        r'[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}',  # Clé API avec tirets
-        # Ajoutez d'autres motifs selon vos besoins
-    ]
+    r'AKIA[0-9A-Z]{16}',  # Amazon AWS Access Key ID
+    r'amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',  # Amazon MWS Auth Token
+    r'AKIA[0-9A-Z]{16}',  # AWS API Key
+    r'[f|F][a|A][c|C][e|E][b|B][o|O][o|O][k|K].*[\'|\"][0-9a-f]{32}[\'|\"]',  # Facebook OAuth
+    r'[g|G][i|I][t|T][h|H][u|U][b|B].*[\'|\"][0-9a-zA-Z]{35,40}[\'|\"]',  # GitHub
+    r'AIza[0-9A-Za-z\\-_]{35}',  # Google API Key
+    r'[h|H][e|E][r|R][o|O][k|K][u|U].*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}',  # Heroku API Key
+    r'[a-zA-Z]{3,10}://[^/\\s:@]{3,20}:[^/\\s:@]{3,20}@.{1,100}["\'\\s]',  # Password in URL
+    r'[t|T][w|W][i|I][t|T][t|T][e|E][r|R].*[1-9][0-9]+-[0-9a-zA-Z]{40}',  # Twitter Access Token
+]
 
-    for pattern in api_key_patterns:
-        api_key_pattern = re.compile(pattern)
-        match = api_key_pattern.search(content)
-        if match:
-            return match.group(0)
+    found_keys = []
+    total_patterns = len(api_key_patterns)
 
-    return None
+    with tqdm(total=total_patterns, desc="Searching API Keys", unit="pattern") as pbar:
+        for pattern in api_key_patterns:
+            try:
+                matches = re.findall(pattern, content)
+                found_keys.extend(matches)
+                pbar.update(1)  # Met à jour la barre de progression pour chaque motif traité
+            except:
+                print("error regex")
+
+    return found_keys
 
 def analyze_page_content(url, content):
     # Analyser le contenu de la page à la recherche de la clé API
     api_key = search_api_key_in_page(content)
 
     if api_key:
-        print(f"Clé API trouvée sur la page {url}: {api_key}")
+        #print(f"Clé API trouvée sur la page {url}: {api_key}")
         # Faites ce que vous devez faire avec la clé API, par exemple, l'enregistrer dans un fichier
         with open('api_keys.txt', 'a') as api_file:
             api_file.write(f"{api_key} {url}\n")
@@ -146,7 +155,7 @@ def request_to_found_new_url(url):
 
 def main():
     global target_domain
-    target_domain = "www.thewrap.com"
+    target_domain = "www.epitech.eu"
     #target_domain = "escape.tech"
     #target_domain = "snowpack.eu"
     url = "https://" + target_domain
