@@ -36,7 +36,6 @@ def extract_url_in_link_data(data, base_url):
         for match in matches:
             url = match.group(1)
             full_url = urljoin(base_url, url)
-            #new_links.add(full_url)
             if is_same_domain(full_url):
                 new_links.add(full_url)
         return new_links
@@ -157,7 +156,7 @@ def request_to_found_new_url(url):
 
 def main():
     global target_domain
-    target_domain = "zone01rouennormandie.org"
+    target_domain = "onda.ai"
     url = "https://" + target_domain
     
     get_header_data_and_extract_url(url)
