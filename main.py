@@ -160,12 +160,13 @@ def get_data_from_url(link):
                     except:
                         pass
                     analyze_page_content(link, response.text)
-                    write_links_to_file_append('requested.txt', [f"{link} - Status Code: {response.status_code}"])
+                    write_links_to_file_append('requested_json.txt', [f"{link} - Status Code: {response.status_code}"])
                 except json.decoder.JSONDecodeError:
                     explorer_html(response.text)
                     analyze_page_content(link, response.text)
+                    write_links_to_file_append('requested_html.txt', [f"{link} - Status Code: {response.status_code}"])
             else:
-                write_links_to_file_append('requested.txt', [f"{link} - Status Code: {response.status_code}"])
+                write_links_to_file_append('requested_error.txt', [f"{link} - Status Code: {response.status_code}"])
         except ConnectionError as ce:
             print(f"Erreur de connexion pour l'URL {url}")
         except requests.exceptions.RequestException as e:
