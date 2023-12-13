@@ -52,8 +52,9 @@ def extract_link_from_xml():
     http_target_url = "https://" + target_domain
     tree = sitemap_tree_for_homepage(http_target_url)
     for page in tree.all_pages():
-        if page.url not in url_to_request:
+        if page.url not in url_to_request and page.url not in all_urls:
             url_to_request.append(page.url)
+            all_urls.append(page.url)
 #---------------------------------------------------------------------- Get subdomains
 def get_subdomains():
     url = f'https://crt.sh/?q=%.{target_domain}&output=json'
@@ -66,8 +67,9 @@ def get_subdomains():
             subdomains.add(subdomain)
         for link in subdomains:
             u = url_to_request.copy()
-            if link not in u and '*' not in link:
+            if link not in u and '*' not in link and link not in all_urls:
                 url_to_request.append(link)
+                all_urls.append(link)
     except Exception as e:
         print(f"Erreur lors de la récupération des sous-domaines : {e}")
         return set()
@@ -87,10 +89,9 @@ def get_header_link_data(response):
             if is_same_domain(full_url):
                 new_links.append(full_url)
             for link in new_links:
-                if link not in url_to_request:
-                    
+                if link not in url_to_request and link not in all_urls:
                     url_to_request.append(full_url)
-
+                    all_urls.append(full_url)
     except Exception as e:
         pass
 
@@ -107,20 +108,69 @@ def analyze_page_content(url, content):
 
 def search_api_key_in_page(content):
     api_key_patterns = [
-    r'-----BEGIN RSA PRIVATE KEY-----',                                                                 # RSA private key
-    r'-----BEGIN DSA PRIVATE KEY-----',                                                                 # SSH (DSA) private key
-    r'-----BEGIN EC PRIVATE KEY-----',                                                                  # SSH (EC) private key
-    r'-----BEGIN PGP PRIVATE KEY BLOCK-----',                                                           # PGP private key block
-    r'AKIA[0-9A-Z]{16}',                                                                                # Amazon AWS Access Key ID
-    r'amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',                         # Amazon MWS Auth Token
-    r'AKIA[0-9A-Z]{16}',                                                                                # AWS API Key
-    r'[g|G][i|I][t|T][h|H][u|U][b|B].*[\'|\"][0-9a-zA-Z]{35,40}[\'|\"]',                                # GitHub
-    r'AIza[0-9A-Za-z\\-_]{35}',                                                                         # Google API Key
-    r'[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com',                                           # Google YouTube OAuth
-    r'[h|H][e|E][r|R][o|O][k|K][u|U].*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}',    # Heroku API Key
-    r'[a-zA-Z]{3,10}://[^/\\s:@]{3,20}:[^/\\s:@]{3,20}@.{1,100}["\'\\s]',                               # Password in URL
-    r'https://hooks.slack.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}',             # Slack Webhook
-    r'[t|T][w|W][i|I][t|T][t|T][e|E][r|R].*[1-9][0-9]+-[0-9a-zA-Z]{40}',                                # Twitter Access Token
+    r'''glpat-[0-9a-zA-Z\-]{20}''',                             # GitLab Personal Access Token
+    r'''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}''',  # AWS Access Key
+    r'''-----BEGIN PRIVATE KEY-----''',                        # PKCS8 Private Key
+    r'''-----BEGIN RSA PRIVATE KEY-----''',                    # RSA Private Key
+    r'''-----BEGIN OPENSSH PRIVATE KEY-----''',                # SSH Private Key
+    r'''-----BEGIN PGP PRIVATE KEY BLOCK-----''',              # PGP Private Key
+    r'''ghp_[0-9a-zA-Z]{36}''',                                 # GitHub Personal Access Token
+    r'''gho_[0-9a-zA-Z]{36}''',                                 # GitHub OAuth Access Token
+    r'''-----BEGIN DSA PRIVATE KEY-----''',                    # SSH (DSA) Private Key
+    r'''-----BEGIN EC PRIVATE KEY-----''',                     # SSH (EC) Private Key
+    r'''(ghu|ghs)_[0-9a-zA-Z]{36}''',                          # GitHub App Token
+    r'''ghr_[0-9a-zA-Z]{76}''',                                 # GitHub Refresh Token
+    r'''shpss_[a-fA-F0-9]{32}''',                               # Shopify Shared Secret
+    r'''shpat_[a-fA-F0-9]{32}''',                               # Shopify Access Token
+    r'''shpca_[a-fA-F0-9]{32}''',                               # Shopify Custom App Access Token
+    r'''shppa_[a-fA-F0-9]{32}''',                               # Shopify Private App Access Token
+    r'''xox[baprs]-([0-9a-zA-Z]{10,48})?''',                   # Slack Access Token
+    r'''(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}''',            # Stripe Access Token
+    r'''pypi-AgEIcHlwaS5vcmc[A-Za-z0-9-_]{50,1000}''',         # PyPI Upload Token
+    r'''\"type\": \"service_account\"''',                      # Google (GCP) Service-account
+    r''' (?i)(heroku[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})['\"]''',  # Heroku API Key
+    r'''https://hooks.slack.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,12}/[a-zA-Z0-9_]{24}''',  # Slack Webhook
+    r'''SK[0-9a-fA-F]{32}''',                                  # Twilio API Key
+    r'''AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}''',  # Age Secret Key
+    r'''(?i)(facebook[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-f0-9]{32})['\"]''',  # Facebook Token
+    r'''(?i)(twitter[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-f0-9]{35,44})['\"]''',  # Twitter Token
+    r'''(?i)(adobe[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-f0-9]{32})['\"]''',  # Adobe Client ID (Oauth Web)
+    r'''(p8e-)(?i)[a-z0-9]{32}''',                             # Adobe Client Secret
+    r'''(LTAI)(?i)[a-z0-9]{20}''',                             # Alibaba AccessKey ID
+    r'''(?i)(alibaba[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9]{30})['\"]''',  # Alibaba Secret Key
+    r'''(?i)(asana[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9]{16})['\"]''',  # Asana Client ID
+    r'''(?i)(asana[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9]{32})['\"]''',  # Asana Client Secret
+    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](key[a-zA-Z0-9]{13})['\"]''',  # Airtable API Key
+    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](app[a-zA-Z0-9]{14})['\"]''',  # Airtable App Key
+    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](api[a-zA-Z0-9]{17})['\"]''',  # Airtable API Secret
+    r'''(pk|sk)_test_[0-9a-zA-Z]{24}''',                       # Postman API Key
+    r'''(pk|sk)_live_[0-9a-zA-Z]{24}''',                       # Postman API Key
+    r'''psk-[0-9a-zA-Z]{27}''',                                # PagerDuty Integration Key
+    r'''sk-live-[0-9a-zA-Z]{32}''',                            # Plaid Secret Key
+    r'''(my-)?api-?[0-9a-zA-Z]{36}''',                         # Generic API Key
+    r'''(PRIVATE-KEY-)([a-zA-Z0-9_-]{22,250})(-PUBLIC-KEY-)''',  # SSH Private Key (with markers)
+    r'''bearer [a-zA-Z0-9-_]{100,}''',                         # Bearer Token
+    r'''authorization[:= ].{0,5}['\"]?[bB]earer[-_]?[tT]oken['\"]?[ :]+[a-zA-Z0-9-_]{100,}''',  # Authorization Bearer Token
+    r'''apikey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',   # Generic API Key
+    r'''api_key[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic API Key
+    r'''secret[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',   # Generic Secret
+    r'''access[-_]?token[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{50,}['\"]?''',  # Generic Access Token
+    r'''token[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',     # Generic Token
+    r'''session[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Session Token
+    r'''pass[word]+[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',  # Generic Password
+    r'''pwd[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',        # Generic Password
+    r'''key[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',      # Generic Key
+    r'''(api|token)[-._]?[sS]ecret[-_]?[kK]ey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Secret Key
+    r'''(api|token)[-._]?[kK]ey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Key
+    r'''(api|token)[-._]?[pP]assword[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',  # Generic Password
+    r'''(api|token)[-._]?[tT]oken[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Token
+    r'''(api|token)[-._]?[sS]ession[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Session Token
+    r'''(api|token)[-._]?[aA]uth[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Auth Token
+    r'''(api|token)[-._]?[cC]ode[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Code Token
+    r'''(api|token)[-._]?[iI]d[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{16,}['\"]?''',  # Generic ID Token
+    r'''(api|token)[-._]?[uU]ser[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{16,}['\"]?''',  # Generic User Token
+    r'''(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}''',  # Stripe Access Token
+    r'''(?i)((key|api|token|secret|password)[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9a-zA-Z\-_=]{8,64})['\"]''',  # Generic API Key
 ]
 
     found_keys = []
@@ -133,7 +183,7 @@ def search_api_key_in_page(content):
                 found_keys.extend(matches)
                 pbar.update(1)  # Met à jour la barre de progression pour chaque motif traité
             except:
-                print("error regex")
+                pass
 
     return found_keys
 
@@ -144,7 +194,6 @@ def get_data_from_url(link):
     else:
         url = "http://" + link
     url_requested.append(link)
-    
     if is_subdomain(url):
         print("Requêtes restantes:", len(url_to_request), "Faites:", len(url_requested), url)
         try:
@@ -160,13 +209,16 @@ def get_data_from_url(link):
                     except:
                         pass
                     analyze_page_content(link, response.text)
-                    write_links_to_file_append('requested_json.txt', [f"{link} - Status Code: {response.status_code}"])
+                    write_links_to_file_append('requested_json_' + target_domain+ ".txt", [f"{link} - Status Code: {response.status_code}"])
                 except json.decoder.JSONDecodeError:
-                    explorer_html(response.text)
-                    analyze_page_content(link, response.text)
-                    write_links_to_file_append('requested_html.txt', [f"{link} - Status Code: {response.status_code}"])
+                    try:
+                        explorer_html(response.text)
+                        analyze_page_content(link, response.text)
+                        write_links_to_file_append('requested_html_' + target_domain+ ".txt", [f"{link} - Status Code: {response.status_code}"])
+                    except:
+                        print("error, not json nor html")
             else:
-                write_links_to_file_append('requested_error.txt', [f"{link} - Status Code: {response.status_code}"])
+                write_links_to_file_append('requested_error_' + target_domain+ ".txt", [f"{link} - Status Code: {response.status_code}"])
         except ConnectionError as ce:
             print(f"Erreur de connexion pour l'URL {url}")
         except requests.exceptions.RequestException as e:
@@ -190,8 +242,9 @@ def explorer_html(response):
         unique_urls.add(file_url)
     extracted_urls = list(unique_urls)
     for url in extracted_urls:
-        if url not in url_to_request :
+        if url not in url_to_request and url not in all_urls:
             url_to_request.append(url)
+            all_urls.append(url)
 
 def explorer_json(obj, liens, target_domain):
     if isinstance(obj, list):
@@ -199,8 +252,9 @@ def explorer_json(obj, liens, target_domain):
             explorer_json(item, liens, target_domain)
     elif isinstance(obj, dict):
         for key, value in obj.items():
-            if key in ('href', 'src') and isinstance(value, str) and value not in url_to_request:
+            if key in ('href', 'src') and isinstance(value, str) and value not in url_to_request and value not in all_urls:
                 url_to_request.append(value)
+                all_urls.append(value)
             elif isinstance(value, (list, dict)):
                 explorer_json(value, liens, target_domain)
 
@@ -210,6 +264,7 @@ def main():
 
     target_domain = input("Veuillez entrer l'url a target : ")
     url_to_request.append(target_domain)
+    all_urls.append(target_domain)
     extract_link_from_xml()
     get_subdomains()
     while len(url_to_request) > 0:
@@ -218,8 +273,8 @@ def main():
             if link not in url_requested:
                 url_to_request.remove(link)
                 get_data_from_url(link)
-                write_links_to_file("url_requested.txt", url_requested)   
-                write_links_to_file("url_to_request.txt", url_to_request)   
-    
+                write_links_to_file("url_requested_" + target_domain+ ".txt", url_requested)   
+                write_links_to_file("url_to_request_" + target_domain+ ".txt", url_to_request)   
+                write_links_to_file("all_url_" + target_domain+ ".txt", all_urls)   
 if __name__ == "__main__":
     main()
