@@ -103,7 +103,7 @@ def analyze_page_content(url, content):
     if api_key:
         #print(f"Clé API trouvée sur la page {url}: {api_key}")
         # Faites ce que vous devez faire avec la clé API, par exemple, l'enregistrer dans un fichier
-        with open('api_keys.txt', 'a') as api_file:
+        with open('api_keys' + target_domain+ ".txt", 'a') as api_file:
             api_file.write(f"{api_key} {url}\n")
 
 def search_api_key_in_page(content):
@@ -128,7 +128,7 @@ def search_api_key_in_page(content):
     r'''(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}''',            # Stripe Access Token
     r'''pypi-AgEIcHlwaS5vcmc[A-Za-z0-9-_]{50,1000}''',         # PyPI Upload Token
     r'''\"type\": \"service_account\"''',                      # Google (GCP) Service-account
-    r''' (?i)(heroku[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})['\"]''',  # Heroku API Key
+    r'''(?i)(heroku[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})['\"]''',  # Heroku API Key
     r'''https://hooks.slack.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,12}/[a-zA-Z0-9_]{24}''',  # Slack Webhook
     r'''SK[0-9a-fA-F]{32}''',                                  # Twilio API Key
     r'''AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}''',  # Age Secret Key
@@ -178,11 +178,13 @@ def search_api_key_in_page(content):
 
     with tqdm(total=total_patterns, desc="Searching API Keys", unit="pattern") as pbar:
         for pattern in api_key_patterns:
+            
             try:
                 matches = re.findall(pattern, content)
                 found_keys.extend(matches)
                 pbar.update(1)  # Met à jour la barre de progression pour chaque motif traité
             except:
+                print("error with patern:", pattern)
                 pass
 
     return found_keys
