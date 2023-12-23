@@ -56,24 +56,45 @@ def extract_link_from_xml():
             url_to_request.append(page.url)
             all_urls.append(page.url)
 #---------------------------------------------------------------------- Get subdomains
-def get_subdomains():
-    url = f'https://crt.sh/?q=%.{target_domain}&output=json'
-    try:
-        response = requests.get(url)
-        data = response.json()
-        subdomains = set()
-        for entry in data:
-            subdomain = entry['name_value'].strip()
-            subdomains.add(subdomain)
-        for link in subdomains:
-            u = url_to_request.copy()
-            if link not in u and '*' not in link and link not in all_urls:
-                url_to_request.append(link)
-                all_urls.append(link)
-    except Exception as e:
-        print(f"Erreur lors de la récupération des sous-domaines : {e}")
-        return set()
+def get_subdomains(sub):
+    prefixes = ["https://", "http://", "www.", "http://www.", "https://www."]
+    
+    for domain in sub:
+        for prefix in prefixes:
+            try:
+                full_domain = prefix + domain
+                response = requests.get(full_domain, headers=headers)
+                print(full_domain, response.status_code)
+                url_to_request.append(full_domain)
+                break  # Sortir de la boucle si la requête réussit
+            except requests.RequestException as e:
+                pass
+        else:
+            # Exécuté si la boucle interne se termine sans interruption (c'est-à-dire si aucune requête n'a réussi)
+            print("Aucun préfixe n'a fonctionné pour", domain)
 
+def search_subdomains(url):
+    sub = []
+    csub = []
+    print(f"Recherche des sous-domaines pour {url}...")
+    try:
+        response = requests.get(f'https://crt.sh/?q=%.{url}&output=json', headers=headers)
+        if response.ok:
+            data = response.json()
+            subdomains = {entry['name_value'].strip() for entry in data}
+            for subdomain in subdomains:
+                if subdomain not in sub:
+                    sub.append(subdomain)
+            for s in sub:
+                sub_list = s.split('\n')
+                for url in sub_list:
+                    if url not in csub :
+                        csub.append(url)
+            return csub
+        else:
+            print(f"Erreur lors de la recherche des sous-domaines : {response.text}")
+    except Exception as e:
+        print(f"Erreur lors de la recherche des sous-domaines : {e}")
 
     
 #---------------------------------------------------------------------- extract urls from header Link
@@ -136,41 +157,29 @@ def search_api_key_in_page(content):
     r'''(?i)(twitter[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-f0-9]{35,44})['\"]''',  # Twitter Token
     r'''(?i)(adobe[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-f0-9]{32})['\"]''',  # Adobe Client ID (Oauth Web)
     r'''(p8e-)(?i)[a-z0-9]{32}''',                             # Adobe Client Secret
-    r'''(LTAI)(?i)[a-z0-9]{20}''',                             # Alibaba AccessKey ID
-    r'''(?i)(alibaba[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9]{30})['\"]''',  # Alibaba Secret Key
-    r'''(?i)(asana[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9]{16})['\"]''',  # Asana Client ID
-    r'''(?i)(asana[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9]{32})['\"]''',  # Asana Client Secret
-    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](key[a-zA-Z0-9]{13})['\"]''',  # Airtable API Key
-    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](app[a-zA-Z0-9]{14})['\"]''',  # Airtable App Key
-    r'''(?i)(airtable[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"](api[a-zA-Z0-9]{17})['\"]''',  # Airtable API Secret
-    r'''(pk|sk)_test_[0-9a-zA-Z]{24}''',                       # Postman API Key
-    r'''(pk|sk)_live_[0-9a-zA-Z]{24}''',                       # Postman API Key
-    r'''psk-[0-9a-zA-Z]{27}''',                                # PagerDuty Integration Key
-    r'''sk-live-[0-9a-zA-Z]{32}''',                            # Plaid Secret Key
-    r'''(my-)?api-?[0-9a-zA-Z]{36}''',                         # Generic API Key
-    r'''(PRIVATE-KEY-)([a-zA-Z0-9_-]{22,250})(-PUBLIC-KEY-)''',  # SSH Private Key (with markers)
-    r'''bearer [a-zA-Z0-9-_]{100,}''',                         # Bearer Token
-    r'''authorization[:= ].{0,5}['\"]?[bB]earer[-_]?[tT]oken['\"]?[ :]+[a-zA-Z0-9-_]{100,}''',  # Authorization Bearer Token
-    r'''apikey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',   # Generic API Key
-    r'''api_key[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic API Key
-    r'''secret[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',   # Generic Secret
-    r'''access[-_]?token[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{50,}['\"]?''',  # Generic Access Token
-    r'''token[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',     # Generic Token
-    r'''session[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Session Token
-    r'''pass[word]+[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',  # Generic Password
-    r'''pwd[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',        # Generic Password
-    r'''key[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',      # Generic Key
-    r'''(api|token)[-._]?[sS]ecret[-_]?[kK]ey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Secret Key
-    r'''(api|token)[-._]?[kK]ey[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Key
-    r'''(api|token)[-._]?[pP]assword[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{8,}['\"]?''',  # Generic Password
-    r'''(api|token)[-._]?[tT]oken[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Token
-    r'''(api|token)[-._]?[sS]ession[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Session Token
-    r'''(api|token)[-._]?[aA]uth[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Auth Token
-    r'''(api|token)[-._]?[cC]ode[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{32,}['\"]?''',  # Generic Code Token
-    r'''(api|token)[-._]?[iI]d[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{16,}['\"]?''',  # Generic ID Token
-    r'''(api|token)[-._]?[uU]ser[:= ].{0,5}['\"]?[a-zA-Z0-9-_]{16,}['\"]?''',  # Generic User Token
-    r'''(?i)(sk|pk)_(test|live)_[0-9a-z]{10,32}''',  # Stripe Access Token
-    r'''(?i)((key|api|token|secret|password)[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([0-9a-zA-Z\-_=]{8,64})['\"]''',  # Generic API Key
+    r'''(LTAI)(?i)[a-z0-9]{20}''',                             # Alibaba Cloud Access Key
+    r'''(GDAI)(?i)[a-z0-9]{20}''',                             # Alibaba Cloud Secret Key
+    r'''AIza[0-9A-Za-z-_]{35}''',                              # Android Key
+    r'''AIza[0-9A-Za-z-_]{39}''',                              # Android Key
+    r'''AIza[0-9A-Za-z-_]{63}''',                              # Android Key
+    r'''AIzaSy[0-9A-Za-z-_]{66}''',                            # Android Key
+    r'''AIzaSy[0-9A-Za-z-_]{86}''',                            # Android Key
+    r'''AIzaSy[0-9A-Za-z-_]{95}''',                            # Android Key
+    r'''sk_live_[0-9a-zA-Z]{24}''',                            # Stripe Live Secret Key
+    r'''sk_test_[0-9a-zA-Z]{24}''',                            # Stripe Test Secret Key
+    r'''sq0atp-[0-9A-Za-z\-_]{22}''',                         # Square Access Token
+    r'''sq0csp-[0-9A-Za-z\-_]{43}''',                         # Square OAuth Secret
+    r'''sq0cp-[0-9A-Za-z\-_]{31}''',                          # Square Application ID
+    r'''sq0[a-z]p-[0-9A-Za-z\-_]{53}''',                      # Square Location ID
+    r'''eyr[a-z0-9]{2,}'(?:&|$)''',                           # Auth0 Refresh Token
+    r'''(access|refresh)_token.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,1024}.(id_token|access_token|refresh_token)''',  # OAuth Token
+    r'''Bearer.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,512}''',         # OAuth Bearer Token
+    r'''(consumer|api|application|access)_key.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,512}''',  # Generic API Key
+    r'''[0-9]{3}-[0-9]{2}-[0-9]{4}''',                         # Social Security Number
+    r'''[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}''',               # Credit Card Number
+    r'''(?!^0+$)[0-9]{3,4}''',                                # CVV Code
+    r'''([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,})'''  # Email Address
+    r'''(\+\d{1,2}\s?)?(\d{3}|\(\d{3}\))([-.\s]?)\d{3}([-.\s]?)\d{4}''' #phone number
 ]
 
     found_keys = []
@@ -267,8 +276,11 @@ def main():
     target_domain = input("Veuillez entrer l'url a target : ")
     url_to_request.append(target_domain)
     all_urls.append(target_domain)
-    extract_link_from_xml()
-    get_subdomains()
+    #extract_link_from_xml()
+    sub = search_subdomains(target_domain)
+    get_subdomains(sub)
+    print(url_to_request)
+
     while len(url_to_request) > 0:
         links_to_process = url_to_request.copy()
         for link in links_to_process:
