@@ -14,7 +14,8 @@ all_urls = []
 global target_domain
 global root_url
 user_agents = read_user_agents('outils/data/user_agents.txt')
-headers = {'User-Agent': get_random_user_agent(user_agents)}
+#headers = {'User-Agent': get_random_user_agent(user_agents)}
+headers = {'User-Agent': "X-Intigriti-Username: Momollax"}
 #---------------------------------------------------------------------- Print in file
 def write_links_to_file(filename, links):
     try:
@@ -140,7 +141,7 @@ def analyze_page_content(url, content):
             api_file.write(f"{api_key} {url} \n")
         try:
             with open("azeaze.txt", 'a') as data:
-                data.write(url, content)    
+                data.write(f"URL: {url}\nContent: {content}\n")
         except Exception as e:
             print(e)
         exit()
@@ -214,12 +215,28 @@ def search_api_key_in_page(content):
     r'''(access|refresh)_token.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,1024}.(id_token|access_token|refresh_token)''',  # OAuth Token with ID Token, Access Token, or Refresh Token
     r'''Bearer.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,512}''',  # Bearer Token
     r'''(consumer|api|application|access)_key.[a-zA-Z0-9\-\_\"\'\\\/\+\=]{1,512}''',  # Generic Key
-    r'''[0-9]{3}-[0-9]{2}-[0-9]{4}''',  # Date Format (e.g., 123-45-6789)
     r'''[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}''',  # Credit Card Format (e.g., 1234-5678-9012-3456)
     r'''([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,})(\+\d{1,2}\s?)?(\d{3}|\(\d{3}\))([-.\s]?)\d{3}([-.\s]?)\d{4}''',  # Email Format (e.g., user@example.com)
     r'''document\.write''',
     r'''document\.writeln''',
     r'''document\.location.href''',
+    r'''ReactPropTypesSecret''',
+    r'''pixelborn-''',
+    r'''herokuapp''',
+    r'''location.search''',
+    r'''links''',
+    r'''onclick=''',
+    r'''internal''',
+    r'''/api/''',
+    r'''/api/(?P<version>v\d+)/''',
+    r'''redirect_url:''',
+    r'''client_id=''',
+    r'''admin''',
+    r'''appspot''',
+    r'''firebase''',
+    r'''testuser''',
+    r'''testing''',
+    r'''allow-access-from domain="*"'''
     ]
 
     found_keys = []
